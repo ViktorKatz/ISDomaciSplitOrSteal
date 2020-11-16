@@ -1,0 +1,6 @@
+10,0,0,0,0
+Avenger,1
+Copycat,1
+Forgiver,1
+Goody,1
+Stinger,1
