@@ -15,9 +15,12 @@ public class Hodjorbeggar extends Player {
 	static final int numberOfOpponentsMovesConsidered = 5;
 	static final int batchSizeForLearning = 10;
 	static final int bigBatchSizeForLearning = 100;
+	static final int hardCodedLogicMoveCountTreshold = 3;
 	
 	int countInBatch = 0;
 	int countGlobal = 0;
+	
+	int currentValue = 0;
 	
 	boolean[] exceptionalPlayer = {
 			false, //0. Goody
@@ -25,6 +28,7 @@ public class Hodjorbeggar extends Player {
 			false, //2. CopyCat
 			false, //3. Forgiver
 			false, //4. Avenger
+			false, //5. My humble self
 	};
 	
 	public Hodjorbeggar() {
@@ -33,13 +37,13 @@ public class Hodjorbeggar extends Player {
 
 	@Override
 	public Move getNextMove() {
-		if( countGlobal < numberOfOpponentsMovesConsidered || isExceptionalOpponent() )
+		if( countGlobal <= hardCodedLogicMoveCountTreshold || isExceptionalOpponent() )
 			return finalizeMove(hardCodedLogic());
 		
-		Move toMake = Move.DONTPUTCOINS;
+		Move toMake;
 		
 		double receivedValueWeightedSum = IntStream.range(0, numberOfOpponentsMovesConsidered)
-			.mapToDouble(i -> value(opponentMoves.get(numberOfOpponentsMovesConsidered)) * getWeight(i))
+			.mapToDouble(i -> value(opponentMoves.get(i)) * getWeight(i))
 			.reduce( (a,b) -> a+b )
 			.getAsDouble();
 			
@@ -53,14 +57,14 @@ public class Hodjorbeggar extends Player {
 		return finalizeMove(toMake);
 	}
 	
-	private Move hardCodedLogic() {
+	private Move hardCodedLogic() {//0 1 2 [3]
 		if(countGlobal == 0)
 			return Move.PUT2COINS;
 		if(countGlobal == 1) {
 			if(opponentMoves.get(0) == Move.PUT2COINS ) {
 				exceptionalPlayer[0] = true;
 				exceptionalPlayer[4] = true;
-				return Move.PUT1COIN;
+				return Move.PUT2COINS;
 			}
 			else if(opponentMoves.get(0) == Move.PUT1COIN ) {
 				exceptionalPlayer[2] = true;
@@ -95,11 +99,13 @@ public class Hodjorbeggar extends Player {
 				}
 			}
 		}
+		
+		
 		//Moves 3+
 		if(exceptionalPlayer[0] || exceptionalPlayer[1])
 			return Move.DONTPUTCOINS;
 		if(exceptionalPlayer[2])
-			return Move.PUT2COINS;
+			return countGlobal%2==0 ? Move.PUT2COINS : opponentMoves.get(0);
 		if(exceptionalPlayer[3])
 			return countGlobal%2==0 ? Move.DONTPUTCOINS : Move.PUT2COINS;
 		if(exceptionalPlayer[4])
@@ -164,8 +170,15 @@ public class Hodjorbeggar extends Player {
 	
 	@Override
 	public void resetPlayerState() {
-		// TODO Auto-generated method stub
 		super.resetPlayerState();
+		myMoves.clear();
+		countGlobal = 0;
+		countInBatch = 0;
+		currentValue = 0;
+		
+		for(int i = 0; i < exceptionalPlayer.length; ++i) {
+			exceptionalPlayer[i] = false;
+		}
 	}
 
 	public static void main(String[] args) {

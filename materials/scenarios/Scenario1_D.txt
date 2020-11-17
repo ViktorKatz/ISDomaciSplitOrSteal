@@ -4,3 +4,4 @@ Copycat,5
 Forgiver,5
 Goody,5
 Stinger,5
+Hodjorbeggar,5
