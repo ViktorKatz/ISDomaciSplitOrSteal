@@ -11,6 +11,10 @@ public class Hodjorbeggar extends Player {
 	//List<Move> opponentMoves;
 	protected List<Move> myMoves = new ArrayList<Player.Move>();
 	
+	static final boolean versusMode = true;
+	
+	static int idGen = 0;
+	int id = idGen++;
 	static final double lambda = 0.5;
 	static final int numberOfOpponentsMovesConsidered = 5;
 	static final int batchSizeForLearning = 10;
@@ -22,6 +26,10 @@ public class Hodjorbeggar extends Player {
 	
 	int currentValue = 0;
 	
+	private boolean expectingForgiverOrCopycat = false;
+	private boolean foundSelf = false;
+	private Move moveAgainstSelf = Move.PUT1COIN; //Placeholder default value, never used
+	
 	boolean[] exceptionalPlayer = {
 			false, //0. Goody
 			false, //1. Baddy
@@ -29,6 +37,7 @@ public class Hodjorbeggar extends Player {
 			false, //3. Forgiver
 			false, //4. Avenger
 			false, //5. My humble self
+			false, //6. Nemesis
 	};
 	
 	public Hodjorbeggar() {
@@ -37,8 +46,13 @@ public class Hodjorbeggar extends Player {
 
 	@Override
 	public Move getNextMove() {
+		if(foundSelf)
+			return finalizeMove(strategyAgainstSelf());
+		
 		if( countGlobal <= hardCodedLogicMoveCountTreshold || isExceptionalOpponent() )
 			return finalizeMove(hardCodedLogic());
+		
+		System.out.print("Something entered heuristics...");
 		
 		Move toMake;
 		
@@ -59,16 +73,17 @@ public class Hodjorbeggar extends Player {
 	
 	private Move hardCodedLogic() {//0 1 2 [3]
 		if(countGlobal == 0)
-			return Move.PUT2COINS;
+			return Move.PUT1COIN;
 		if(countGlobal == 1) {
 			if(opponentMoves.get(0) == Move.PUT2COINS ) {
 				exceptionalPlayer[0] = true;
 				exceptionalPlayer[4] = true;
-				return Move.PUT2COINS;
+				return opponentMoves.get(0);
 			}
 			else if(opponentMoves.get(0) == Move.PUT1COIN ) {
 				exceptionalPlayer[2] = true;
 				exceptionalPlayer[3] = true;
+				exceptionalPlayer[5] = true;
 				return Move.DONTPUTCOINS;
 			}
 			else {
@@ -79,12 +94,20 @@ public class Hodjorbeggar extends Player {
 		if(countGlobal == 2) {
 			if(exceptionalPlayer[1])
 				return Move.DONTPUTCOINS;
-			if(exceptionalPlayer[2] || exceptionalPlayer[3]) {
+			if(exceptionalPlayer[2] || exceptionalPlayer[3] || exceptionalPlayer[5]) {
 				if(opponentMoves.get(0) == Move.DONTPUTCOINS) {
 					exceptionalPlayer[3] = false;
+					exceptionalPlayer[2] = false;
+					foundSelf = true;
+					return strategyAgainstSelf();
+				}
+				else if(opponentMoves.get(0) == Move.PUT1COIN){
+					exceptionalPlayer[5] = false;
+					expectingForgiverOrCopycat= true;
+					return Move.DONTPUTCOINS;
 				}
 				else {
-					exceptionalPlayer[2] = false;
+					exceptionalPlayer[6] = true;
 				}
 				return Move.PUT2COINS;
 			}
@@ -100,6 +123,18 @@ public class Hodjorbeggar extends Player {
 			}
 		}
 		
+		if( expectingForgiverOrCopycat ) {
+			expectingForgiverOrCopycat = false;
+			if(opponentMoves.get(0) == Move.DONTPUTCOINS)
+				exceptionalPlayer[3] = false;
+			else
+				exceptionalPlayer[2] = false;
+			return Move.PUT2COINS;
+		}
+		else if( exceptionalPlayer[2] && exceptionalPlayer[3] ) {
+			expectingForgiverOrCopycat = true;
+			return Move.DONTPUTCOINS;
+		}
 		
 		//Moves 3+
 		if(exceptionalPlayer[0] || exceptionalPlayer[1])
@@ -109,9 +144,30 @@ public class Hodjorbeggar extends Player {
 		if(exceptionalPlayer[3])
 			return countGlobal%2==0 ? Move.DONTPUTCOINS : Move.PUT2COINS;
 		if(exceptionalPlayer[4])
-			return opponentMoves.get(0);
+			return Move.DONTPUTCOINS; //opponentMoves.get(0);
 		
-		return null;
+		return opponentMoves.get(0); //Return copycat against intruders.
+	}
+
+	private Move strategyAgainstSelf() {
+		return Move.PUT2COINS;
+		/*
+		if(moveAgainstSelf!=Move.PUT1COIN)
+			return moveAgainstSelf;
+		
+		if(myMoves.get(0) == Move.PUT2COINS && opponentMoves.get(0) == Move.DONTPUTCOINS)
+			moveAgainstSelf = Move.PUT2COINS;
+		else if(myMoves.get(0) == Move.DONTPUTCOINS && opponentMoves.get(0) == Move.PUT2COINS)
+			moveAgainstSelf = Move.DONTPUTCOINS;
+		else return getAlternatingBoolean() ? Move.PUT2COINS : Move.DONTPUTCOINS;
+		
+		return moveAgainstSelf;*/
+	}
+	
+	static boolean currentAlternatingBoolean = false;
+	static boolean getAlternatingBoolean() {
+		currentAlternatingBoolean = !currentAlternatingBoolean;
+		return currentAlternatingBoolean;
 	}
 
 	private double threshold(Move m) {
@@ -175,6 +231,10 @@ public class Hodjorbeggar extends Player {
 		countGlobal = 0;
 		countInBatch = 0;
 		currentValue = 0;
+		
+		expectingForgiverOrCopycat = false;
+		foundSelf = false;
+		moveAgainstSelf = Move.PUT1COIN;
 		
 		for(int i = 0; i < exceptionalPlayer.length; ++i) {
 			exceptionalPlayer[i] = false;
