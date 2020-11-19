@@ -24,7 +24,7 @@ public class Hodjorbeggar extends Player {
 	static final int hardCodedLogicMoveCountTreshold = 3;
 	
 	static boolean useSacrificialPawns = false;
-	static double probabilityToChangeSacrificialPawnTactic = 0.001;
+	static double probabilityToChangeSacrificialPawnTactic = 0.00001;
 	
 	int countInBatch = 0;
 	int countGlobal = 0;
@@ -77,7 +77,11 @@ public class Hodjorbeggar extends Player {
 			toMake = Move.PUT2COINS;
 		else if( receivedValueWeightedSum >= threshold(Move.PUT2COINS) )
 			toMake = Move.PUT1COIN;
-		else toMake = Move.DONTPUTCOINS;
+		else{
+			toMake = Move.DONTPUTCOINS;
+			if(rand.nextDouble()<0.0005)
+				toMake = Move.PUT2COINS;
+		};
 		
 		return finalizeMove(toMake);
 	}
