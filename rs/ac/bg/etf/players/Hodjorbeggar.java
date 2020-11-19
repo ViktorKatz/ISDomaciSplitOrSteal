@@ -17,9 +17,10 @@ public class Hodjorbeggar extends Player {
 	int id = idGen++;
 	static final double lambda = 0.5;
 	static final int numberOfOpponentsMovesConsidered = 5;
-	static final int batchSizeForLearning = 10;
+	static final int batchSizeForLearning = 5;
 	static final int bigBatchSizeForLearning = 100;
 	static final int hardCodedLogicMoveCountTreshold = 3;
+	static final boolean useSacrificialPawns = false;
 	
 	int countInBatch = 0;
 	int countGlobal = 0;
@@ -52,12 +53,16 @@ public class Hodjorbeggar extends Player {
 		if( countGlobal <= hardCodedLogicMoveCountTreshold || isExceptionalOpponent() )
 			return finalizeMove(hardCodedLogic());
 		
-		System.out.print("Something entered heuristics...");
+		//System.out.print("Something entered heuristics...");
 		
 		Move toMake;
 		
 		double receivedValueWeightedSum = IntStream.range(0, numberOfOpponentsMovesConsidered)
-			.mapToDouble(i -> value(opponentMoves.get(i)) * getWeight(i))
+			.mapToDouble(i -> {
+				if(i>=opponentMoves.size())
+					return 0;
+				return value(opponentMoves.get(i)) * getWeight(i);
+				})
 			.reduce( (a,b) -> a+b )
 			.getAsDouble();
 			
@@ -137,23 +142,70 @@ public class Hodjorbeggar extends Player {
 		}
 		
 		//Moves 3+
-		if(exceptionalPlayer[0] || exceptionalPlayer[1])
+		if(exceptionalPlayer[0] || exceptionalPlayer[1]) {
+			if(exceptionalPlayer[0] && opponentMoves.get(0)!=Move.PUT2COINS) {
+				exceptionalPlayer[0] = false;
+				return opponentMoves.get(0);
+			}
+			if(exceptionalPlayer[1] && opponentMoves.get(0)!=Move.DONTPUTCOINS) {
+				exceptionalPlayer[1] = false;
+				return opponentMoves.get(0);
+			}
+			
 			return Move.DONTPUTCOINS;
-		if(exceptionalPlayer[2])
+		}
+		if(exceptionalPlayer[2]) {
+			if(opponentMoves.get(0)!=myMoves.get(1)) {
+				exceptionalPlayer[2] = false;
+				return opponentMoves.get(0);
+			}
 			return countGlobal%2==0 ? Move.PUT2COINS : opponentMoves.get(0);
-		if(exceptionalPlayer[3])
+		}
+		if(exceptionalPlayer[3]) {
+			if(countGlobal > 4 && opponentMoves.get(0) == Move.DONTPUTCOINS) {
+				exceptionalPlayer[3] = false;
+				return opponentMoves.get(0);
+			}
 			return countGlobal%2==0 ? Move.DONTPUTCOINS : Move.PUT2COINS;
-		if(exceptionalPlayer[4])
-			return Move.DONTPUTCOINS; //opponentMoves.get(0);
+		}
+		if(exceptionalPlayer[4]) {
+			return Move.DONTPUTCOINS;// We want him out, no matter what.
+		}
 		
 		return opponentMoves.get(0); //Return copycat against intruders.
 	}
 
+	private Move max(Move move, Move move2) {
+		if(move.compareTo(move2)<0) return move2;
+		else return move;
+	}
+
+	private Move min(Move move, Move move2) {
+		if(move.compareTo(move2)<0) return move;
+		else return move2;
+	}
+
+	private int delayerHelper = 0;
 	private Move strategyAgainstSelf() {
-		return Move.PUT2COINS;
-		/*
-		if(moveAgainstSelf!=Move.PUT1COIN)
+		if(!useSacrificialPawns) {
+			if(++delayerHelper>1) {
+				if(opponentMoves.get(0) != Move.PUT2COINS)
+					exceptionalPlayer[5] = false;
+				return opponentMoves.get(0);
+			}
+			
+			return Move.PUT2COINS;
+		}
+		
+		if(moveAgainstSelf!=Move.PUT1COIN) {
+			if( ++delayerHelper>1 ) {
+				if(opponentMoves.get(0) == Move.PUT1COIN || opponentMoves.get(0) == myMoves.get(0)) {
+					exceptionalPlayer[5] = false;
+					return opponentMoves.get(0);
+				}
+			}
 			return moveAgainstSelf;
+		}
 		
 		if(myMoves.get(0) == Move.PUT2COINS && opponentMoves.get(0) == Move.DONTPUTCOINS)
 			moveAgainstSelf = Move.PUT2COINS;
@@ -161,7 +213,7 @@ public class Hodjorbeggar extends Player {
 			moveAgainstSelf = Move.DONTPUTCOINS;
 		else return getAlternatingBoolean() ? Move.PUT2COINS : Move.DONTPUTCOINS;
 		
-		return moveAgainstSelf;*/
+		return moveAgainstSelf;
 	}
 	
 	static boolean currentAlternatingBoolean = false;
@@ -231,6 +283,8 @@ public class Hodjorbeggar extends Player {
 		countGlobal = 0;
 		countInBatch = 0;
 		currentValue = 0;
+		
+		delayerHelper = 0;
 		
 		expectingForgiverOrCopycat = false;
 		foundSelf = false;
