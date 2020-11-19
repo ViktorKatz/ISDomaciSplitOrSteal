@@ -4,6 +4,7 @@ import rs.ac.bg.etf.players.Player;
 import java.lang.Math;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.IntStream;
 
 public class Hodjorbeggar extends Player {
@@ -17,10 +18,13 @@ public class Hodjorbeggar extends Player {
 	int id = idGen++;
 	static final double lambda = 0.5;
 	static final int numberOfOpponentsMovesConsidered = 5;
-	static final int batchSizeForLearning = 5;
-	static final int bigBatchSizeForLearning = 100;
+	static final int batchSizeForLearning = 10;
+	static final double allowedErrorRate = 0.2;
+	//static final int bigBatchSizeForLearning = 100;
 	static final int hardCodedLogicMoveCountTreshold = 3;
-	static final boolean useSacrificialPawns = false;
+	
+	static boolean useSacrificialPawns = false;
+	static double probabilityToChangeSacrificialPawnTactic = 0.001;
 	
 	int countInBatch = 0;
 	int countGlobal = 0;
@@ -30,6 +34,8 @@ public class Hodjorbeggar extends Player {
 	private boolean expectingForgiverOrCopycat = false;
 	private boolean foundSelf = false;
 	private Move moveAgainstSelf = Move.PUT1COIN; //Placeholder default value, never used
+	
+	Random rand = new Random();
 	
 	boolean[] exceptionalPlayer = {
 			false, //0. Goody
@@ -186,7 +192,7 @@ public class Hodjorbeggar extends Player {
 	}
 
 	private int delayerHelper = 0;
-	private Move strategyAgainstSelf() {
+	private Move strategyAgainstSelf() {		
 		if(!useSacrificialPawns) {
 			if(++delayerHelper>1) {
 				if(opponentMoves.get(0) != Move.PUT2COINS)
@@ -248,10 +254,50 @@ public class Hodjorbeggar extends Player {
 		opponentMoves.add(0, addedMove);
 		
 		++countGlobal;
-		if(++countInBatch>=batchSizeForLearning) {
-			//restudyOpponent();
+		if( !isExceptionalOpponent() ) {
+			restudyOpponent();
 			countInBatch = 0;
 		}
+	}
+
+	private void restudyOpponent() {
+		//System.out.println("Studying..");
+		double requiredPrecision = 1 - allowedErrorRate;
+		
+		int numOfOpponentsMoves = opponentMoves.size();
+		
+		if( (double)opponentMoves.parallelStream()
+				.filter( m -> m == Move.PUT2COINS)
+				.count() >= requiredPrecision*numOfOpponentsMoves )
+			exceptionalPlayer[0] = true;
+		
+		if( (double)opponentMoves.parallelStream()
+				.filter( m -> m == Move.DONTPUTCOINS)
+				.count() >= requiredPrecision*numOfOpponentsMoves )
+			exceptionalPlayer[1] = true;
+		
+		long matchingMoves = IntStream.range(0, opponentMoves.size())
+			.filter(i -> {
+				if(i+1 >= myMoves.size())
+					return false;
+				return opponentMoves.get(i) == myMoves.get(i+1);
+			}).count();
+		if( matchingMoves >= requiredPrecision*(numOfOpponentsMoves-1) )
+			exceptionalPlayer[2] = true;
+		
+		matchingMoves = IntStream.range(0, opponentMoves.size())
+				.filter(i -> {
+					if(i+1 >= myMoves.size())
+						return false;
+					if(myMoves.get(i+1) == Move.DONTPUTCOINS)
+						return true;
+					return opponentMoves.get(i) == myMoves.get(i+1);
+				}).count();
+			if( matchingMoves >= requiredPrecision*(numOfOpponentsMoves-1) )
+				exceptionalPlayer[3] = true;
+			
+		
+		
 	}
 
 	private boolean isExceptionalOpponent() {
@@ -292,6 +338,11 @@ public class Hodjorbeggar extends Player {
 		
 		for(int i = 0; i < exceptionalPlayer.length; ++i) {
 			exceptionalPlayer[i] = false;
+		}
+		
+		if(rand.nextDouble() < probabilityToChangeSacrificialPawnTactic) {
+			useSacrificialPawns = !useSacrificialPawns;
+			probabilityToChangeSacrificialPawnTactic = 0;
 		}
 	}
 
